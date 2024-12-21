@@ -1,4 +1,9 @@
 import { AppSidebar } from "@/components/app-sidebar";
+import Map1 from "@/components/Map-components/Map1";
+import Map2 from "@/components/Map-components/MapZoom";
+import Map3 from "@/components/Map-components/Map3";
+import Map4 from "@/components/Map-components/Map4";
+import Map from "@/components/Map-components/Map";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,7 +12,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import Map from "@/components/Map";
+
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
@@ -45,7 +50,13 @@ export default function Page() {
 
         {/* Conteneur de la carte */}
         <div className="w-full h-screen"> {/* Assurez-vous que la carte occupe toute la hauteur */}
-          <Map />
+       
+      
+        <Map1/>
+       
+
+     
+   
         </div>
       </SidebarInset>
     </SidebarProvider>
