@@ -1,58 +1,96 @@
-import { useState, useCallback } from "react";
-import { LatLngBounds, latLngBounds } from "leaflet";
+"use client"; // Indique que ce composant doit être rendu côté client
 
-export const useMapInteractions = (initialPosition, initialZoomLevel) => {
-  const [visibleLayer, setVisibleLayer] = useState("cm1"); // Couche par défaut
-  const [activeZone, setActiveZone] = useState(null); // Zone active
-  const [bounds, setBounds] = useState<LatLngBounds | null>(null); // Limites du zoom
-  const [layerHistory, setLayerHistory] = useState(["cm1"]); // Historique des couches
+import { MapContainer, TileLayer, GeoJSON, LayersControl } from "react-leaflet";
+import { LatLngExpression } from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { useState } from "react";
 
-  // Gestion du clic sur une zone
-  const handleZoneClick = useCallback((feature, nextLayer) => {
-    if (feature.geometry) {
-      const coordinates = feature.geometry.coordinates;
+// Import des données GeoJSON
+import cm1 from "@/data/cm1.geojson.json";
+import cm2 from "@/data/cm2.geojson.json";
+import cm3 from "@/data/cm3.geojson.json";
+import cm4 from "@/data/cm4.geojson.json";
 
-      // Calculer les limites pour le zoom
-      const newBounds = latLngBounds(
-        coordinates[0].map((coord) => [coord[1], coord[0]])
-      );
-      setBounds(newBounds);
-    }
+const { BaseLayer, Overlay } = LayersControl;
 
-    // Changer de couche si une couche suivante existe
-    if (nextLayer) {
-      setVisibleLayer(nextLayer);
-      setLayerHistory((prev) => [...prev, nextLayer]);
-    }
+const Map1 = () => {
+  const position: LatLngExpression = [4.570868, 12.341234];
+  const zoomLevel = 6;
 
-    setActiveZone(feature);
-  }, []);
+  // État pour stocker la zone sélectionnée
+  const [selectedZone, setSelectedZone] = useState(null);
 
-  const handleBackToPreviousView = useCallback(() => {
-    if (layerHistory.length > 1) {
-      const updatedHistory = [...layerHistory];
-      updatedHistory.pop(); // Retirer la dernière couche de l'historique
-      const previousLayer = updatedHistory[updatedHistory.length - 1]; // Obtenir la couche précédente
-  
-      setLayerHistory(updatedHistory); // Mettre à jour l'historique des couches
-      setVisibleLayer(previousLayer); // Afficher la couche précédente
-  
-      // Réinitialiser la zone active et les limites
-      setActiveZone(null); // Réinitialiser la zone active
-      setBounds(null); // Réinitialiser les limites de zoom
-    } else {
-      // Si l'historique est vide ou qu'on est déjà à la couche initiale, revenir à la vue de départ
-      setVisibleLayer("cm2"); // Réinitialiser à la couche initiale
-      setBounds(latLngBounds(initialPosition, initialPosition)); // Réinitialiser les limites
-      setActiveZone(null); // Aucune zone active
-    }
-  }, [layerHistory, initialPosition]);
-
-  return {
-    visibleLayer,
-    bounds,
-    activeZone,
-    handleZoneClick,
-    handleBackToPreviousView,
+  const layers = {
+    cm1: { data: cm1, color: "gray" },
+    cm2: { data: cm2, color: "green" },
+    cm3: { data: cm3, color: "blue" },
+    cm4: { data: cm4, color: "orange" },
   };
+
+  const getStyle = (color, feature) => {
+    if (selectedZone === feature) {
+      return { color: "red", weight: 3, fillOpacity: 0.8 }; // Style actif
+    }
+    return { color, weight: 1, fillOpacity: 0.5 }; // Style par défaut
+  };
+
+  const handleClick = (feature) => {
+    if (selectedZone === feature) {
+      setSelectedZone(null); // Désélectionne la zone si elle est déjà sélectionnée
+    } else {
+      setSelectedZone(feature); // Sélectionne la nouvelle zone
+    }
+  };
+
+  return (
+    <div className="h-full w-full relative">
+      <MapContainer
+        center={position}
+        zoom={zoomLevel}
+        className="h-full w-full"
+        zoomControl={true} // Bouton de zoom natif
+      >
+        <LayersControl position="topright">
+          {/* Couche de base */}
+          <BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+          </BaseLayer>
+
+          {/* Couches GeoJSON ajoutées comme Overlays */}
+          {Object.entries(layers).map(([key, { data, color }]) => (
+            <Overlay key={key} name={`Layer ${key.toUpperCase()}`}>
+              <GeoJSON
+                data={data}
+                style={(feature) => getStyle(color, feature)}
+                onEachFeature={(feature, layer) => {
+                  layer.on({
+                    mouseover: () => {
+                      if (selectedZone !== feature) {
+                        layer.setStyle({ color, weight: 3, fillOpacity: 0.7 }); // Style au survol
+                      }
+                    },
+                    mouseout: () => {
+                      layer.setStyle(getStyle(color, feature)); // Rétablit le style
+                    },
+                    click: () => {
+                      handleClick(feature); // Appelle la fonction pour gérer le clic
+                    },
+                  });
+
+                  if (feature.properties && feature.properties.NAME_1) {
+                    layer.bindPopup(`<b>${feature.properties.NAME_1}</b>`);
+                  }
+                }}
+              />
+            </Overlay>
+          ))}
+        </LayersControl>
+      </MapContainer>
+    </div>
+  );
 };
+
+export default Map1;

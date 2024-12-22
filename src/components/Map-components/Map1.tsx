@@ -1,11 +1,9 @@
-"use client";  // Indique que ce composant doit être rendu côté client
+"use client"; // Indique que ce composant doit être rendu côté client
 
-import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, LayersControl } from "react-leaflet";
 import { LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Button } from "@/components/ui/button";
-import { useMapInteractions } from "@/hooks/useMapInteractions";
-import MapZoom from "./MapZoom";
+import { useState } from "react";
 
 // Import des données GeoJSON
 import cm1 from "@/data/cm1.geojson.json";
@@ -13,34 +11,34 @@ import cm2 from "@/data/cm2.geojson.json";
 import cm3 from "@/data/cm3.geojson.json";
 import cm4 from "@/data/cm4.geojson.json";
 
+const { BaseLayer, Overlay } = LayersControl;
+
 const Map1 = () => {
   const position: LatLngExpression = [4.570868, 12.341234];
   const zoomLevel = 6;
 
-  // Utilisation du hook personnalisé pour gérer les interactions de la carte
-  const {
-    visibleLayer,
-    bounds,
-    activeZone,
-    handleZoneClick,
-    handleBackToPreviousView,
-  } = useMapInteractions(position, zoomLevel);
+  // État pour stocker la zone sélectionnée
+  const [selectedZone, setSelectedZone] = useState(null);
 
   const layers = {
-    cm1: { data: cm1, color: "gray", nextLayer: "cm2" },
-    cm2: { data: cm2, color: "green", nextLayer: "cm3" },
-    cm3: { data: cm3, color: "blue", nextLayer: "cm4" },
-    cm4: { data: cm4, color: "orange", nextLayer: null },
+    cm1: { data: cm1, color: "gray" },
+    cm2: { data: cm2, color: "green" },
+    cm3: { data: cm3, color: "blue" },
+    cm4: { data: cm4, color: "orange" },
   };
 
-  const getStyle = (color, type = "default") => {
-    switch (type) {
-      case "hover":
-        return { color, weight: 3, fillOpacity: 0.7 };
-      case "active":
-        return { color: "yellow", weight: 3, fillOpacity: 0.8 };
-      default:
-        return { color, weight: 1, fillOpacity: 0.5 };
+  const getStyle = (color, feature) => {
+    if (selectedZone === feature) {
+      return { color: "red", weight: 3, fillOpacity: 0.8 }; // Style actif
+    }
+    return { color, weight: 1, fillOpacity: 0.5 }; // Style par défaut
+  };
+
+  const handleClick = (feature) => {
+    if (selectedZone === feature) {
+      setSelectedZone(null); // Désélectionne la zone si elle est déjà sélectionnée
+    } else {
+      setSelectedZone(feature); // Sélectionne la nouvelle zone
     }
   };
 
@@ -50,57 +48,47 @@ const Map1 = () => {
         center={position}
         zoom={zoomLevel}
         className="h-full w-full"
+        zoomControl={true} // Bouton de zoom natif
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-
-        {Object.entries(layers).map(([key, { data, color, nextLayer }]) => (
-          visibleLayer === key && (
-            <GeoJSON
-              key={key}
-              data={data}
-              style={(feature) =>
-                activeZone && activeZone.properties.NAME_1 === feature.properties.NAME_1
-                  ? getStyle("yellow", "active")
-                  : getStyle(color)
-              }
-              onEachFeature={(feature, layer) => {
-                layer.on({
-                  mouseover: () => layer.setStyle(getStyle(color, "hover")),
-                  mouseout: () => {
-                    if (
-                      activeZone &&
-                      activeZone.properties.NAME_1 === feature.properties.NAME_1
-                    ) {
-                      layer.setStyle(getStyle("yellow", "active"));
-                    } else {
-                      layer.setStyle(getStyle(color));
-                    }
-                  },
-                  click: () => handleZoneClick(feature, nextLayer),
-                });
-
-                if (feature.properties && feature.properties.NAME_1) {
-                  layer.bindPopup(`<b>${feature.properties.NAME_1}</b>`);
-                }
-              }}
+        <LayersControl position="topright">
+          {/* Couche de base */}
+          <BaseLayer checked name="OpenStreetMap">
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-          )
-        ))}
+          </BaseLayer>
 
-        {/* Zoom dynamique lorsque les limites changent */}
-        {bounds && <MapZoom bounds={bounds} />}
+          {/* Couches GeoJSON ajoutées comme Overlays */}
+          {Object.entries(layers).map(([key, { data, color }]) => (
+            <Overlay key={key} name={`Layer ${key.toUpperCase()}`}>
+              <GeoJSON
+                data={data}
+                style={(feature) => getStyle(color, feature)}
+                onEachFeature={(feature, layer) => {
+                  layer.on({
+                    mouseover: () => {
+                      if (selectedZone !== feature) {
+                        layer.setStyle({ color, weight: 3, fillOpacity: 0.7 }); // Style au survol
+                      }
+                    },
+                    mouseout: () => {
+                      layer.setStyle(getStyle(color, feature)); // Rétablit le style
+                    },
+                    click: () => {
+                      handleClick(feature); // Appelle la fonction pour gérer le clic
+                    },
+                  });
+
+                  if (feature.properties && feature.properties.NAME_1) {
+                    layer.bindPopup(`<b>${feature.properties.NAME_1}</b>`);
+                  }
+                }}
+              />
+            </Overlay>
+          ))}
+        </LayersControl>
       </MapContainer>
-
-      {/* Bouton pour revenir à la vue précédente */}
-      <Button
-        onClick={handleBackToPreviousView}
-        className="absolute top-2 left-2 z-[1000]"
-      >
-        Return 
-      </Button>
     </div>
   );
 };
